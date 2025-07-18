@@ -72,7 +72,7 @@ class MCPClient:
             messages=messages
         )
 
-        print(response.choices)
+        # print(response.choices)
 
         # Process response and handle tool calls
         final_text = []
@@ -96,27 +96,39 @@ class MCPClient:
                     
                     if isinstance(tool_args, str):
                         tool_args_dict = json.loads(tool_args)
-
-
+                    
                     # Execute tool call
                     result = await self.session.call_tool(tool_name, tool_args_dict)
-                    print(result)
-                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                    text_output = "".join(content.text for content in result.content if hasattr(content, "text"))
+                    data = ""
+                    try:
+                        data = json.loads(text_output)
+                        # print(data)  # pretty print
+                    except json.JSONDecodeError as e:
+                        print("Tool call result output is not valid JSON:", e)
 
+                    
+                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]\n Execution Result:\n")
+                    final_text.append(f"{json.dumps(data, indent=2)}\n")
                     assistant_message_content.append(choice.message.content or "")
                     messages.append({
                         "role": "assistant",
                         "content": "".join(final_text)
                     })
+                    # messages.append({
+                    #     "role": "user",
+                    #     "content": [
+                    #         {
+                    #             "type": "tool_result",
+                    #             "tool_use_id": tool_call.id,
+                    #             "content": data
+                    #         }
+                    #     ]
+                    # })
                     messages.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_call.id,
-                                "content": result.content
-                            }
-                        ]
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result.content
                     })
                     # Get next response from LLM
                     response = self.llm.chat.completions.create(
@@ -124,15 +136,17 @@ class MCPClient:
                         messages=messages,
                         tools=available_tools
                     )
+                    print(response) # it directly just merge the message??
                     
-                    final_text.append(response)
+                    # final_text.append("LLM: "+response.choices[0].message.content)
+                    final_text.append("LLM: " + (response.choices[0].message.content or "[No response]"))
 
         # tools_args = {
         #     "resourceType": "pods",
         #     "namespace": "sre-test"
         # }
         # await self.execute_tool_call("kubectl_get", tools_args)
-        return "final_text"
+        return final_text
 
     async def chat_loop(self):
         """Run an interactive chat loop"""
@@ -147,7 +161,11 @@ class MCPClient:
                     break
 
                 response = await self.process_query(query)
-                print("\n" + response)
+                # print("\nLLM: " + response)
+                if isinstance(response, list):
+                    print("\n" + "\n".join(str(r) for r in response))
+                else:
+                    print("\n" + str(response))
 
             except Exception as e:
                 print(f"\nError: {str(e)}")
