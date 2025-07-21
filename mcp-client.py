@@ -26,9 +26,18 @@ class MCPClient:
 
     async def connect_to_server(self):
         """Connect to an MCP server"""
+        # server_params = StdioServerParameters(
+        #     command="npx",
+        #     args=["mcp-server-kubernetes"]
+        # )
+
         server_params = StdioServerParameters(
             command="npx",
-            args=["mcp-server-kubernetes"]
+            args=[
+                "-y",
+                "supergateway",
+                "--sse",
+                "http://localhost:8000/sse"]
         )
 
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
@@ -40,7 +49,7 @@ class MCPClient:
         # List available tools
         response = await self.session.list_tools()
         tools = response.tools
-        # print("\nConnected to server with tools:", [f'{tool.name}:{tool.description}, inputSchema: {tool.inputSchema}' for tool in tools])
+        print("\nConnected to server with tools:", [f'{tool.name}:{tool.description}, inputSchema: {tool.inputSchema}' for tool in tools])
 
     async def execute_tool_call(self, tool_name, tool_args):
         result = await self.session.call_tool(tool_name, tool_args)
