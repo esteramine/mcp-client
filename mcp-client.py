@@ -10,6 +10,7 @@ from mcp.client.stdio import stdio_client
 import json
 
 from dotenv import load_dotenv
+import os
 
 
 class MCPClient:
@@ -18,8 +19,8 @@ class MCPClient:
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
         self.llm = OpenAI(
-            base_url="{{base_url}}",
-            api_key="not-needed" 
+            base_url=os.getenv("LLM_BASE_URL"),
+            api_key=os.getenv("LLM_API_KEY") 
         )
         # self.anthropic = Anthropic()
 
@@ -67,7 +68,7 @@ class MCPClient:
         
         # Initial LLM API call
         response = self.llm.chat.completions.create(
-            model="Llama-3.2-3B-Instruct",
+            model=os.getenv("LLM_MODEL"),
             tools=available_tools,
             messages=messages
         )
@@ -86,7 +87,7 @@ class MCPClient:
                     tool_name = tool_call.function.name
                     tool_args = tool_call.function.arguments
 
-                    query = input(f"\nDo you allow this host to use this tool {tool_name}: {tool_args}\n").strip()
+                    query = input(f"\nDo you allow this host to call this tool {tool_name}: {tool_args}\n").strip()
 
                     if query.lower() != 'yes' and query.lower() != 'y':
                         return "Tool action is denied."
@@ -108,8 +109,8 @@ class MCPClient:
                         print("Tool call result output is not valid JSON:", e)
 
                     
-                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]\n Execution Result:\n")
-                    final_text.append(f"{json.dumps(data, indent=2)}\n")
+                    print(f"[Calling tool {tool_name} with args {tool_args}]\n\nExecution Result:")
+                    print(f"{json.dumps(data, indent=2)}\n")
                     assistant_message_content.append(choice.message.content or "")
                     messages.append({
                         "role": "assistant",
@@ -136,7 +137,7 @@ class MCPClient:
                         messages=messages,
                         tools=available_tools
                     )
-                    print(response) # it directly just merge the message??
+                    # print(response) # it directly just merge the message??
                     
                     # final_text.append("LLM: "+response.choices[0].message.content)
                     final_text.append("LLM: " + (response.choices[0].message.content or "[No response]"))
@@ -187,4 +188,5 @@ async def main():
         await client.cleanup()
 
 if __name__ == "__main__":
+    load_dotenv()
     asyncio.run(main())
