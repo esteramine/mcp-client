@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")

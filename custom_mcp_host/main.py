@@ -1,45 +1,52 @@
 import asyncio
-import os
-from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from mcp_use import MCPAgent, MCPClient
+import json
+
+from mcp_client.mcp_client import MCPClient
+from mcp_agent.mcp_agent import MCPAgent
+from llm.factory import get_llm_client
+from config.settings import LLM_PROVIDER
+
+CONFIG_PATH = "config/mcp_servers.json"
+
+async def chat_loop(agent: MCPAgent):
+        """Run an interactive chat loop"""
+        print("\nHost Started!")
+        print("Type your queries or 'quit' to exit.")
+
+        while True:
+            try:
+                query = input("\nQuery: ").strip()
+
+                if query.lower() == 'quit':
+                    break
+
+                response = await agent.process_query(query)
+
+                if isinstance(response, list):
+                    print("\nLLM:".join(str(r) for r in response))
+                else:
+                    print("\nLLM:" + str(response))
+
+            except Exception as e:
+                print(f"\nError: {str(e)}")
 
 async def main():
-    # Load environment variables
-    load_dotenv()
-
-    # Create configuration dictionary
-    config = {
-    "mcpServers": {
-      "kubernetes": {
-          "command": "npx",
-          "args": [
-              "mcp-server-kubernetes"
-          ],
-          "env": {
-              "SPAWN_MAX_BUFFER": "5242880"
-          }
+    try:
+      with open(CONFIG_PATH, "r") as f:
+        config_dict = json.load(f)
+      
+      clients = {
+          key: await MCPClient.create(cfg)
+          for key, cfg in config_dict.items()
       }
-    }
-  }
 
-    # Create MCPClient from configuration dictionary
-    client = MCPClient.from_dict(config)
+      llm = get_llm_client(LLM_PROVIDER)
+      agent = MCPAgent(llm, clients)
+      await chat_loop(agent)
+      
+    finally:
+      await agent.aclose()
 
-    # Create LLM
-    llm = ChatOpenAI(model=os.getenv("LLM_MODEL"),
-        api_key=os.getenv("LLM_API_KEY"), 
-        base_url=os.getenv("LLM_BASE_URL"),
-      )
-
-    # Create agent with the client
-    agent = MCPAgent(llm=llm, client=client, max_steps=30)
-
-    # Run the query
-    result = await agent.run(
-        "list all pods under sre-test namespace",
-    )
-    print(f"\nResult: {result}")
 
 if __name__ == "__main__":
     asyncio.run(main())
