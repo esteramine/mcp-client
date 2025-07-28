@@ -67,6 +67,7 @@ class OpenAIClient(BaseLLMClient):
                 tools=available_tools,
                 messages=messages
             )
+        print(raw_response)
 
         return LLMResponse([
             LLMMessage(

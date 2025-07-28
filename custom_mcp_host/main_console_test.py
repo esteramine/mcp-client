@@ -41,6 +41,7 @@ async def main():
       }
 
       llm = get_llm_client(LLM_PROVIDER)
+      # uses default input() confirmation
       agent = MCPAgent(llm, clients)
       await chat_loop(agent)
       

@@ -2,6 +2,7 @@ from mcp_client.mcp_client import MCPClient
 from shared.llm import LLMResponse
 from shared.tool import Tool, ToolCall
 from llm.base_client import BaseLLMClient
+from shared.context_manager import context_var
 
 class MCPAgent:
     def __init__(self, llm: BaseLLMClient, clients: dict[str, MCPClient]):
@@ -60,7 +61,7 @@ class MCPAgent:
                 # TODO: Should be self.clients[server_name].execute_tool(tool_call.name, tool_call.arguments) when multiple mcp servers are allowed (server_name dynamically changes)
                 # NOTES: now only got "kubernetes" MCP server in this code base and chat completion doesn't support server_label, so the server_name value is hardcoded with "kubernetes" first
                 result = await self.clients["kubernetes"].execute_tool(tool_call.name, tool_call.args)
-                print(result)
+                # print(result)
 
                 # Update conversation
                 messages.extend([
@@ -69,12 +70,34 @@ class MCPAgent:
                 ])
 
                 # Next response
-                response = await self.llm.chat(messages, available_tools)
-                final_text.append(response.messages[0].content or "")
+                next_response = await self.llm.chat(messages, available_tools)
+                final_text.append(next_response.messages[0].content or "")
 
         return final_text
-
+    
     async def _confirm_tool_call(self, tool_call: ToolCall) -> bool:
-        """Ask user for approval"""
-        user_input = input(f"\nDo you allow this host to call tool {tool_call.name} with args {tool_call.args}? (yes/no): ").strip()
+        """Detect caller context and pick correct confirmation method."""
+        context = context_var.get()
+
+        if context == "teams":
+            return await self.confirm_via_teams(tool_call)
+        elif context == "swagger":
+            return await self.confirm_via_swagger(tool_call)
+        else:
+            return await self.confirm_cli(tool_call)
+
+    async def confirm_via_teams(self, tool_call: ToolCall):
+        print(f"Auto-approved tool call: {tool_call.name}({tool_call.args})")
+        return True
+
+    async def confirm_via_swagger(self, tool_call: ToolCall):
+        print(f"Auto-approved tool call: {tool_call.name}({tool_call.args})")
+        return True
+    
+    async def confirm_cli(self, tool_call: ToolCall) -> bool:
+        """CLI default: ask on console"""
+        user_input = input(
+            f"\nDo you allow this host to call tool {tool_call.name} with args {tool_call.args}? (yes/no): "
+        ).strip()
         return user_input.lower() in ["yes", "y"]
+    
